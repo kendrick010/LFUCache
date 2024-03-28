@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstddef>
+#include <unordered_map>
 
 namespace LRUCache {
 
@@ -33,19 +33,33 @@ namespace LRUCache {
 
     template <typename T>
     class DoubleLinkedList {
+    private:
+        Node<T>* head;
+        Node<T>* tail;
+        std::unordered_map<T, Node<T>*> cacheMap;
+
     public:
-        DoubleLinkedList() : root(nullptr) {}
+        DoubleLinkedList() : head(nullptr), tail(nullptr) {
+            // Create dummy head and tail nodes
+            head = new Node<T>(T());
+            tail = new Node<T>(T());
+
+            // Connect head and tail
+            head->next = tail;
+            tail->prev = head;
+        }
 
         ~DoubleLinkedList() {
-            Node<T>* temp{root};
+            Node<T>* current = head;
 
-            while (nullptr != temp) {
-                Node<T>* next{temp->next};
-                delete temp;
-                temp = next;
+            while (current != nullptr) {
+                Node<T>* next = current->next;
+                delete current;
+                current = next;
             }
 
-            root = nullptr;
+            head = nullptr;
+            tail = nullptr;
         }
 
         DoubleLinkedList(const DoubleLinkedList& aCopy) {
@@ -53,56 +67,101 @@ namespace LRUCache {
         }
 
         DoubleLinkedList& operator=(const DoubleLinkedList& aList) {
-            root = aList.root;
-            size = aList.size;
+            Node<T>* current = head;
+
+            // Clear list
+            while (current != nullptr) {
+                Node<T>* next = current->next;
+                delete current;
+                current = next;
+            }
+
+            head = nullptr;
+            tail = nullptr;
+
+            // Copy elements from aList
+            current = aList.head;
+            while (current != nullptr) {
+                append(current->theValue);
+                current = current->next;
+            }
 
             return *this;
         }
 
         void prepend(T aValue) {
-            auto temp = new Node<T>(aValue);
+            Node<T>* temp = new Node<T>(aValue);
 
-            if (nullptr == root) root = temp;
+            if (nullptr == head) {
+                head = temp;
+                tail = temp;
+            }
+
             else {
-                temp->next = root;
-                root->prev = temp;
-                root = temp;
+                temp->next = head;
+                head->prev = temp;
+                head = temp;
             }
 
-            ++size;
+            cacheMap[aValue] = temp;
         }
 
-        void remove(Node<T>* aNode) {
-            if (nullptr == aNode) return;
+        void append(T aValue) {
+            Node<T>* temp = new Node<T>(aValue);
 
-            if (root == aNode) {
-                root = aNode->next;
-                if (nullptr != root) root->prev = nullptr;
+            if (nullptr == head) {
+                head = temp;
+                tail = temp;
             }
+
             else {
-                aNode->prev->next = aNode->next;
-                if (nullptr != aNode->next) aNode->next->prev = aNode->prev;
+                tail->next = temp;
+                temp->prev = tail;
+                tail = temp;
             }
 
-            delete aNode;
-            --size;
+            cacheMap[aValue] = temp;
         }
 
-        Node<T>* getRoot() {
-            return root;
+        void remove(T aValue) {
+            auto iter = cacheMap.find(aValue);
+            if (iter != cacheMap.end()) {
+                Node<T>* nodeToRemove = iter->second;
+
+                if (nodeToRemove == head) {
+                    head = nodeToRemove->next;
+                    if (nullptr != head) head->prev = nullptr;
+                }
+                else {
+                    nodeToRemove->prev->next = nodeToRemove->next;
+                    if (nullptr != nodeToRemove->next) nodeToRemove->next->prev = nodeToRemove->prev;
+                }
+
+                if (nodeToRemove == tail) {
+                    tail = nodeToRemove->prev;
+                    if (tail != nullptr) tail->next = nullptr;
+                }
+
+                delete nodeToRemove;
+                cacheMap.erase(aValue);
+            }
         }
 
-        size_t getSize() {
-            return size;
+        T popLRU() {
+            T LRUvalue = head->next->theValue;
+            remove(LRUvalue);
+
+            return LRUvalue;
         }
 
-        void setRoot(Node<T>* aNode) {
-            root = aNode;
+        void update(T aValue) {
+            remove(aValue);
+            append(aValue);
         }
 
-    private:
-        Node<T>* root;
-        size_t size{0};
+        size_t getLength() {
+            return cacheMap.size();
+        }
     };
 
 }
